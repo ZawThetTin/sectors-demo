@@ -1,4 +1,38 @@
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
+import { useEffect, useState } from 'react';
+const firebaseConfig = {
+	apiKey: import.meta.env.VITE_API_KEY,
+	authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+	projectId: import.meta.env.VITE_PROJECT_ID,
+	storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+	messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+	appId: import.meta.env.VITE_APP_ID,
+	measurementId: import.meta.env.VITE_MEASUREMENT_ID,
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 function App() {
+	const [sectors, setSectors] = useState([]);
+
+	const getSectors = async db => {
+		const sectorsCol = collection(db, 'sectors');
+		const sectorSnapshot = await getDocs(sectorsCol);
+		const sectorList = sectorSnapshot.docs.map(doc => doc.data());
+		return sectorList;
+	};
+
+	useEffect(() => {
+		getSectors(db).then(data => {
+			setSectors(data);
+		});
+	}, []);
+
+	useEffect(() => {
+		console.log({ sectors });
+	}, [sectors]);
 	return (
 		<div>
 			Please enter your name and pick the Sectors you are currently involved in.
