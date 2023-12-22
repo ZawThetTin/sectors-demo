@@ -20,7 +20,10 @@ function App() {
 	const getSectors = async db => {
 		const sectorsCol = collection(db, 'sectors');
 		const sectorSnapshot = await getDocs(sectorsCol);
-		const sectorList = sectorSnapshot.docs.map(doc => doc.data());
+		const sectorList = sectorSnapshot.docs.map(doc => ({
+			id: doc.id,
+			...doc.data(),
+		}));
 		return sectorList;
 	};
 
