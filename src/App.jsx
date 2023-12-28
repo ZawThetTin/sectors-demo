@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
 import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_API_KEY,
 	authDomain: import.meta.env.VITE_AUTH_DOMAIN,
@@ -15,8 +19,31 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const LIST_VIEW = 'view';
 const CREATE_VIEW = 'create';
+const USER_NAME = 'userName';
+const CHOSEN_IDS = 'chosenIds';
+const AGREE_TO_TERMS = 'agreeToTerms';
+const schema = yup
+	.object({
+		[USER_NAME]: yup.string().required('Username is required'),
+		[CHOSEN_IDS]: yup
+			.array()
+			.min(1)
+			.required('Please choose one of the sectors'),
+		[AGREE_TO_TERMS]: yup
+			.boolean()
+			.required('You must agree to our terms')
+			.oneOf([true], 'You must agree to our terms'),
+	})
+	.required();
 
-function App() {
+const App = () => {
+	const {
+		register,
+		handleSubmit,
+		formState: { errors },
+	} = useForm({
+		resolver: yupResolver(schema),
+	});
 	const [sectors, setSectors] = useState([]);
 	const [choices, setChoices] = useState([]);
 	const [view, setView] = useState(LIST_VIEW);
@@ -41,8 +68,8 @@ function App() {
 		return choiceList;
 	};
 
-	const handleSave = e => {
-		e.preventDefault();
+	const onSubmit = data => {
+		console.log(data);
 		setView(LIST_VIEW);
 	};
 
@@ -60,48 +87,57 @@ function App() {
 		console.log({ choices });
 	}, [sectors, choices]);
 
+	const ErrorMessage = ({ children, ...rest }) => (
+		<small {...rest}>{children}</small>
+	);
+
 	if (view === LIST_VIEW)
 		return (
 			<div>
-				<div>{JSON.stringify(choices)}</div>
-				<div>
-					<button onClick={() => setView(CREATE_VIEW)}>Create</button>
-					<table>
-						<thead>
-							<tr>
-								<th>User</th>
-								<th>Sectors</th>
-								<th>Agree to terms</th>
+				<button onClick={() => setView(CREATE_VIEW)}>Create</button>
+				<table>
+					<thead>
+						<tr>
+							<th>User</th>
+							<th>Sectors</th>
+							<th>Agree to terms</th>
+						</tr>
+					</thead>
+					<tbody>
+						{choices?.map(({ user, agreeToTerms, chosenIds, id } = {}) => (
+							<tr key={id}>
+								<td>{user}</td>
+								<td>{chosenIds}</td>
+								<td>{agreeToTerms ? 'Yes' : 'No'}</td>
 							</tr>
-						</thead>
-						<tbody>
-							{choices?.map(({ user, agreeToTerms, chosenIds, id } = {}) => (
-								<tr key={id}>
-									<td>{user}</td>
-									<td>{chosenIds}</td>
-									<td>{agreeToTerms ? 'Yes' : 'No'}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
+						))}
+					</tbody>
+				</table>
 			</div>
 		);
 
 	if (view === CREATE_VIEW)
 		return (
-			<div>
+			<form onSubmit={handleSubmit(onSubmit)}>
 				Please enter your name and pick the Sectors you are currently involved
 				in.
 				<br />
 				<br />
 				Name:
-				<input type='text' />
+				<input type='text' {...register(USER_NAME)} />
+				{errors[USER_NAME] && (
+					<ErrorMessage>{errors[USER_NAME]?.message}</ErrorMessage>
+				)}
 				<br />
 				<br />
 				Sectors:
-				<select multiple='' size='5'>
-					<option value='1'>Manufacturing</option>
+				<select multiple={true} size='5' {...register(CHOSEN_IDS)}>
+					{sectors?.map(({ id, name } = {}) => (
+						<option key={id} value={id}>
+							{name}
+						</option>
+					))}
+					{/* <option value='1'>Manufacturing</option>
 					<option value='19'>
 						&nbsp;&nbsp;&nbsp;&nbsp;Construction materials
 					</option>
@@ -330,18 +366,20 @@ function App() {
 					</option>
 					<option value='113'>
 						&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Water
-					</option>
+					</option> */}
 				</select>
-				<br />
-				<br />
-				<input type='checkbox' /> Agree to terms
-				<br />
-				<br />
-				<input type='submit' value='Save' onClick={handleSave} />
-			</div>
+				{errors[CHOSEN_IDS] && (
+					<ErrorMessage>{errors[CHOSEN_IDS]?.message}</ErrorMessage>
+				)}
+				<input type='checkbox' {...register(AGREE_TO_TERMS)} /> Agree to terms
+				{errors[AGREE_TO_TERMS] && (
+					<ErrorMessage>{errors[AGREE_TO_TERMS]?.message}</ErrorMessage>
+				)}
+				<button type='submit'>Save</button>
+			</form>
 		);
 
 	return null;
-}
+};
 
 export default App;
