@@ -1,5 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
+import {
+	getFirestore,
+	collection,
+	getDocs,
+	doc,
+	addDoc,
+	setDoc,
+	deleteDoc,
+} from 'firebase/firestore/lite';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -19,12 +27,14 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const LIST_VIEW = 'view';
 const CREATE_VIEW = 'create';
-const USER_NAME = 'userName';
+const USER = 'user';
 const CHOSEN_IDS = 'chosenIds';
 const AGREE_TO_TERMS = 'agreeToTerms';
+const SECTORS_COLLECTION = 'sectors';
+const CHOICES_COLLECTION = 'choices';
 const schema = yup
 	.object({
-		[USER_NAME]: yup.string().required('Username is required'),
+		[USER]: yup.string().required('Username is required'),
 		[CHOSEN_IDS]: yup
 			.array()
 			.min(1)
@@ -40,6 +50,7 @@ const App = () => {
 	const {
 		register,
 		handleSubmit,
+		reset,
 		formState: { errors },
 	} = useForm({
 		resolver: yupResolver(schema),
@@ -49,7 +60,7 @@ const App = () => {
 	const [view, setView] = useState(LIST_VIEW);
 
 	const getSectors = async db => {
-		const sectorsCol = collection(db, 'sectors');
+		const sectorsCol = collection(db, SECTORS_COLLECTION);
 		const sectorSnapshot = await getDocs(sectorsCol);
 		const sectorList = sectorSnapshot.docs.map(doc => ({
 			id: doc.id,
@@ -59,7 +70,7 @@ const App = () => {
 	};
 
 	const getChoices = async db => {
-		const choicesCol = collection(db, 'choices');
+		const choicesCol = collection(db, CHOICES_COLLECTION);
 		const choiceSnapshot = await getDocs(choicesCol);
 		const choiceList = choiceSnapshot.docs.map(doc => ({
 			id: doc.id,
@@ -68,9 +79,52 @@ const App = () => {
 		return choiceList;
 	};
 
-	const onSubmit = data => {
-		console.log(data);
+	const createUserChoices = async (db, values) => {
+		const choicesCollection = collection(db, CHOICES_COLLECTION);
+		const userChoices = {
+			[USER]: values[USER],
+			[CHOSEN_IDS]: values[CHOSEN_IDS],
+			[AGREE_TO_TERMS]: values[AGREE_TO_TERMS],
+		};
+
+		if (values?.id) {
+			await setDoc(doc(db, CHOICES_COLLECTION, values?.id), userChoices);
+		} else {
+			await addDoc(choicesCollection, userChoices);
+		}
+
+		getChoices(db).then(data => {
+			setChoices(data);
+		});
+	};
+
+	const onSubmit = async values => {
+		console.log(values);
+		await createUserChoices(db, values);
+		reset({});
 		setView(LIST_VIEW);
+	};
+
+	const handleCreate = () => {
+		setView(CREATE_VIEW);
+		reset({});
+	};
+
+	const handleEdit = values => {
+		reset(values);
+		setView(CREATE_VIEW);
+	};
+
+	const handleCancel = () => {
+		setView(LIST_VIEW);
+		reset();
+	};
+
+	const handleDelete = async id => {
+		await deleteDoc(doc(db, CHOICES_COLLECTION, id));
+		getChoices(db).then(data => {
+			setChoices(data);
+		});
 	};
 
 	useEffect(() => {
@@ -82,11 +136,6 @@ const App = () => {
 		});
 	}, []);
 
-	useEffect(() => {
-		console.log({ sectors });
-		console.log({ choices });
-	}, [sectors, choices]);
-
 	const ErrorMessage = ({ children, ...rest }) => (
 		<small {...rest}>{children}</small>
 	);
@@ -94,7 +143,7 @@ const App = () => {
 	if (view === LIST_VIEW)
 		return (
 			<div>
-				<button onClick={() => setView(CREATE_VIEW)}>Create</button>
+				<button onClick={handleCreate}>Create</button>
 				<table>
 					<thead>
 						<tr>
@@ -109,6 +158,15 @@ const App = () => {
 								<td>{user}</td>
 								<td>{chosenIds}</td>
 								<td>{agreeToTerms ? 'Yes' : 'No'}</td>
+								<td>
+									<button
+										onClick={() =>
+											handleEdit({ id, user, agreeToTerms, chosenIds })
+										}>
+										Edit
+									</button>
+									<button onClick={() => handleDelete(id)}>Delete</button>
+								</td>
 							</tr>
 						))}
 					</tbody>
@@ -124,10 +182,8 @@ const App = () => {
 				<br />
 				<br />
 				Name:
-				<input type='text' {...register(USER_NAME)} />
-				{errors[USER_NAME] && (
-					<ErrorMessage>{errors[USER_NAME]?.message}</ErrorMessage>
-				)}
+				<input type='text' {...register(USER)} />
+				{errors[USER] && <ErrorMessage>{errors[USER]?.message}</ErrorMessage>}
 				<br />
 				<br />
 				Sectors:
@@ -376,6 +432,7 @@ const App = () => {
 					<ErrorMessage>{errors[AGREE_TO_TERMS]?.message}</ErrorMessage>
 				)}
 				<button type='submit'>Save</button>
+				<button onClick={handleCancel}>Cancel</button>
 			</form>
 		);
 
